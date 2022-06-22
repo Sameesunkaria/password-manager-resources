@@ -599,3 +599,128 @@ function parsePasswordRules(input, formatRulesForMinifiedVersion)
 
     return newPasswordRules;
 }
+
+// MARK: Serializing
+
+const SERIALIZE_PROPERTY_WHITESPACE = " ";
+const SERIALIZE_PROPERTY_VALUE_WHITESPACE = " ";
+const SERIALIZE_PROPERTY_VALUE_START_WHITESPACE = " ";
+
+const RuleSortingOrder = new Map(
+    [
+        RuleName.MIN_LENGTH,
+        RuleName.MAX_LENGTH,
+        RuleName.MAX_CONSECUTIVE,
+        RuleName.REQUIRED,
+        RuleName.ALLOWED
+    ]
+    .map((rule, i) => [rule, i]));
+
+function _compareRules(lhs, rhs)
+{
+    let ruleCompare = RuleSortingOrder.get(lhs.name) - RuleSortingOrder.get(rhs.name);
+    if (ruleCompare !== 0) {
+        return ruleCompare;
+    }
+
+    if (lhs.value === rhs.value) {
+        return 0;
+    }
+
+    return lhs.value < rhs.value ? -1 : 1;
+}
+
+function _sortRuleValue(ruleValue)
+{
+    if (!Array.isArray(ruleValue)) {
+        return ruleValue;
+    }
+
+    for (let characterClass of ruleValue) {
+        if (characterClass instanceof CustomCharacterClass) {
+            characterClass._characters = _sortCustomCharacterClassCharacters(characterClass.characters);
+        }
+    }
+
+    return ruleValue.sort(_compareCharacterClasses);
+}
+
+function _compareCharacterClasses(lhs, rhs)
+{
+    if (lhs.type === rhs.type) {
+        if (lhs instanceof NamedCharacterClass) {
+            return lhs.name < rhs.name ? -1 : 1;
+        }
+
+        if (lhs instanceof CustomCharacterClass) {
+            return lhs.characters < rhs.characters ? -1 : 1;
+        }
+    }
+
+    return lhs.type < rhs.type ? -1 : 1;
+}
+
+function _sortCustomCharacterClassCharacters(characters)
+{
+    var sortedCharacters = [];
+    var hasDash = false;
+    var hasRightSquareBracket = false;
+
+    for (let character of characters) {
+        if (character === "-") {
+            hasDash = true;
+            continue;
+        }
+
+        if (character === "]") {
+            hasRightSquareBracket = true;
+            continue;
+        }
+
+        sortedCharacters.push(character);
+    }
+
+    if (hasDash) {
+        sortedCharacters.unshift("-");
+    }
+
+    if (hasRightSquareBracket) {
+        sortedCharacters.push("]");
+    }
+
+    return sortedCharacters;
+}
+
+function _serializeRuleValue(ruleValue)
+{
+    if (!Array.isArray(ruleValue)) {
+        return ruleValue.toString();
+    }
+
+    return ruleValue.join(PROPERTY_VALUE_SEPARATOR + SERIALIZE_PROPERTY_VALUE_WHITESPACE);
+}
+
+function _serializeRule(rule)
+{
+    return rule.name
+        + PROPERTY_VALUE_START_SENTINEL
+        + SERIALIZE_PROPERTY_VALUE_START_WHITESPACE
+        + _serializeRuleValue(rule.value)
+}
+
+function serializeParsedPasswordRules(passwordRules)
+{
+    for (let rule of passwordRules) {
+        rule.value = _sortRuleValue(rule.value);
+    }
+
+    return passwordRules
+        .sort(_compareRules)
+        .map(_serializeRule)
+        .join(PROPERTY_SEPARATOR + SERIALIZE_PROPERTY_WHITESPACE) + PROPERTY_SEPARATOR;
+}
+
+function formatPasswordRules(passwordRules, formatRulesForMinifiedVersion)
+{
+    return serializeParsedPasswordRules(parsePasswordRules(passwordRules, formatRulesForMinifiedVersion));
+}
