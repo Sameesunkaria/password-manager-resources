@@ -708,19 +708,31 @@ function _serializeRule(rule)
         + _serializeRuleValue(rule.value)
 }
 
-function serializeParsedPasswordRules(passwordRules)
+function serializeParsedPasswordRules(passwordRules, deterministic = false)
 {
-    for (let rule of passwordRules) {
-        rule.value = _sortRuleValue(rule.value);
+    if (deterministic) {
+        for (let rule of passwordRules) {
+            rule.value = _sortRuleValue(rule.value);
+        }
+
+        passwordRules = passwordRules.sort(_compareRules)
     }
 
     return passwordRules
-        .sort(_compareRules)
         .map(_serializeRule)
         .join(PROPERTY_SEPARATOR + SERIALIZE_PROPERTY_WHITESPACE) + PROPERTY_SEPARATOR;
 }
 
 function formatPasswordRules(passwordRules, formatRulesForMinifiedVersion)
 {
-    return serializeParsedPasswordRules(parsePasswordRules(passwordRules, formatRulesForMinifiedVersion));
+    let rules = parsePasswordRules(passwordRules, formatRulesForMinifiedVersion);
+    console.log(rules.map(x => x.name + ": " + x.value).join("; "));
+    return serializeParsedPasswordRules(rules, false);
 }
+
+console.log(formatPasswordRules("minlength: 6; maxlength: 50; max-consecutive: 2; required: lower, upper; required: digit; allowed: [-_!@$0123456789[]]", true));
+console.log(formatPasswordRules("max-consecutive: 2; required: lower, upper; required: digit; allowed: [-_!@$0123456789[]]", false));
+console.log(formatPasswordRules("max-consecutive: 2; required: lower, upper; required: digit; allowed: [-_!@$0123456789[]]", true));
+console.log(formatPasswordRules("max-consecutive: 2; required: lower, upper; required: digit; allowed: [-1562809734]", true));
+console.log(formatPasswordRules("max-consecutive: 2; required: upper, lower; allowed: [-15629734]", false));
+console.log(formatPasswordRules("required: lower, upper; max-consecutive: 2; max-consecutive: 1; required: digit", true));
